@@ -86,6 +86,10 @@ export function aliveCount(room: PerudoRoom): number {
     return room.players.reduce((n, p) => n + (p.alive ? 1 : 0), 0);
 }
 
+export function hasHumanAlive(room: PerudoRoom): boolean {
+    return room.players.some(p => p.alive && !p.userId.startsWith('bot-'));
+}
+
 export function nextAliveIndex(room: PerudoRoom, fromIndex: number): number {
     const len = room.players.length;
     for (let i = 1; i <= len; i++) {

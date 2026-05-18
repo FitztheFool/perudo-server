@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { setupSocketAuth, corsConfig, connectToLobby } from '@kwizar/shared';
 
 import {
-    rerollAll, isBidValid, countDice, aliveCount, nextAliveIndex,
+    rerollAll, isBidValid, countDice, aliveCount, hasHumanAlive, nextAliveIndex,
     findPlayer, findPlayerIndex, loseDie, totalAliveDice, DEFAULT_INITIAL_DICE,
 } from './game';
 import { rooms, createRoom } from './rooms';
@@ -161,7 +161,7 @@ function resolveAfterReveal(code: string, loserUserId: string): void {
         }
     }
 
-    if (aliveCount(room) <= 1) {
+    if (aliveCount(room) <= 1 || !hasHumanAlive(room)) {
         finishGame(code);
         return;
     }
@@ -228,7 +228,7 @@ timerCallbacks.onTimeout = (code: string) => {
 
         io.to(code).emit('perudo:playerKicked', { userId, username, reason: 'inactivity' });
 
-        if (aliveCount(room) <= 1) { finishGame(code); return; }
+        if (aliveCount(room) <= 1 || !hasHumanAlive(room)) { finishGame(code); return; }
         room.currentPlayerIndex = nextAliveIndex(room, idxBefore);
         emitState(io, room);
         startTimer(io, code);
@@ -298,7 +298,7 @@ io.on('connection', (socket) => {
 
         io.to(code).emit('perudo:playerSurrendered', { userId, username: p.username });
 
-        if (aliveCount(room) <= 1) { finishGame(code); return; }
+        if (aliveCount(room) <= 1 || !hasHumanAlive(room)) { finishGame(code); return; }
 
         // If the surrenderer was the current player, advance turn.
         if (idxBefore === room.currentPlayerIndex) {
@@ -334,7 +334,7 @@ io.on('connection', (socket) => {
             pl.alive = false;
             pl.dice = [];
             io.to(code).emit('perudo:playerKicked', { userId, username: pl.username, reason: 'inactivity' });
-            if (aliveCount(r) <= 1) { finishGame(code); return; }
+            if (aliveCount(r) <= 1 || !hasHumanAlive(r)) { finishGame(code); return; }
             if (idxBefore === r.currentPlayerIndex) {
                 r.currentPlayerIndex = nextAliveIndex(r, idxBefore);
                 clearTimer(code);
