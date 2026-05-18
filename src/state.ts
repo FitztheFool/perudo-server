@@ -1,0 +1,55 @@
+import type { Server } from 'socket.io';
+import { PerudoRoom } from './types';
+import { aliveCount } from './game';
+
+interface PublicPlayer {
+    userId: string;
+    username: string;
+    diceCount: number;
+    alive: boolean;
+    /** Dice are only included in this player's own view (or in reveal phase). */
+    dice?: number[];
+}
+
+export function buildStateFor(room: PerudoRoom, viewerId: string | null) {
+    const isReveal = room.phase === 'reveal' || room.phase === 'ended';
+    const current = room.players[room.currentPlayerIndex];
+
+    const players: PublicPlayer[] = room.players.map(p => {
+        const showDice = isReveal || p.userId === viewerId;
+        return {
+            userId: p.userId,
+            username: p.username,
+            diceCount: p.dice.length,
+            alive: p.alive,
+            ...(showDice ? { dice: [...p.dice] } : {}),
+        };
+    });
+
+    return {
+        code: room.code,
+        round: room.round,
+        phase: room.phase,
+        currentPlayerIndex: room.currentPlayerIndex,
+        currentUserId: current?.userId ?? null,
+        initialDice: room.initialDice,
+        lastBid: room.lastBid,
+        pacosWild: room.pacosWild,
+        totalDice: room.players.reduce((s, p) => s + p.dice.length, 0),
+        aliveCount: aliveCount(room),
+        lastReveal: isReveal ? room.lastReveal : null,
+        players,
+        spectator: viewerId ? !room.players.some(p => p.userId === viewerId) : true,
+    };
+}
+
+export function emitState(io: Server, room: PerudoRoom): void {
+    const sockets = io.sockets.adapter.rooms.get(room.code);
+    if (!sockets) return;
+    for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s) continue;
+        const viewerId = (s.data?.userId as string | undefined) ?? null;
+        s.emit('perudo:state', buildStateFor(room, viewerId));
+    }
+}
