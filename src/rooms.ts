@@ -1,5 +1,6 @@
 import { PerudoRoom, ConfiguredPlayer } from './types';
 import { createPlayer, DEFAULT_INITIAL_DICE, MIN_INITIAL_DICE, MAX_INITIAL_DICE } from './game';
+import { TURN_DURATION } from './timer';
 
 export const rooms: Record<string, PerudoRoom> = {};
 
@@ -19,6 +20,8 @@ export function createRoom(code: string, players: ConfiguredPlayer[], initialDic
         afkStrikes: {},
         socketIds: new Map(),
         disconnectTimers: new Map(),
+        turnStartedAt: null,
+        turnDuration: TURN_DURATION,
     };
     return rooms[code];
 }

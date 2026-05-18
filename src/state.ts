@@ -38,6 +38,8 @@ export function buildStateFor(room: PerudoRoom, viewerId: string | null) {
         totalDice: room.players.reduce((s, p) => s + p.dice.length, 0),
         aliveCount: aliveCount(room),
         lastReveal: isReveal ? room.lastReveal : null,
+        turnStartedAt: room.turnStartedAt,
+        turnDuration: room.turnDuration,
         players,
         spectator: viewerId ? !room.players.some(p => p.userId === viewerId) : true,
     };

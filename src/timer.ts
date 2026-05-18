@@ -1,5 +1,4 @@
 import type { Server } from 'socket.io';
-import { PerudoRoom } from './types';
 import { rooms } from './rooms';
 
 export const TURN_DURATION = 60;
@@ -25,6 +24,8 @@ export function clearTimer(code: string): void {
 export function startTimer(io: Server, code: string): void {
     clearTimer(code);
     timers[code] = { remaining: TURN_DURATION };
+    const room = rooms[code];
+    if (room) room.turnStartedAt = Date.now();
 
     timers[code].interval = setInterval(() => {
         const slot = timers[code];

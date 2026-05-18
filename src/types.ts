@@ -30,6 +30,8 @@ export interface PerudoRoom {
     afkStrikes: Record<string, number>;
     socketIds: Map<string, string>;
     disconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
+    turnStartedAt: number | null;
+    turnDuration: number;
 }
 
 export interface EliminatedPlayer {
