@@ -210,39 +210,25 @@ timerCallbacks.onTimeout = (code: string) => {
     const p = room.players[room.currentPlayerIndex];
     if (!p?.alive) return;
 
-    // Bots use no strikes — just take their turn.
+    // Bots shouldn't time out (they auto-play), but if they do, just take their turn.
     if (isBot(p.userId)) { botTakeTurnIfNeeded(code); return; }
 
-    const strikes = (room.afkStrikes[p.userId] ?? 0) + 1;
-    room.afkStrikes[p.userId] = strikes;
+    // Kick the AFK human immediately.
+    const idxBefore = room.currentPlayerIndex;
+    const username = p.username;
+    const userId = p.userId;
+    const aliveAfter = aliveCount(room) - 1;
+    pushEliminated(room.eliminated, { userId, username, afk: true }, aliveAfter);
+    p.alive = false;
+    p.dice = [];
 
-    if (strikes >= 2) {
-        // Kick the AFK player: remove dice, mark eliminated/afk.
-        const idxBefore = room.currentPlayerIndex;
-        const username = p.username;
-        const userId = p.userId;
-        const aliveAfter = aliveCount(room) - 1;
-        pushEliminated(room.eliminated, { userId, username, afk: true }, aliveAfter);
-        p.alive = false;
-        p.dice = [];
+    io.to(code).emit('perudo:playerKicked', { userId, username, reason: 'inactivity' });
 
-        io.to(code).emit('perudo:playerKicked', { userId, username, reason: 'inactivity' });
-
-        if (aliveCount(room) <= 1 || !hasHumanAlive(room)) { finishGame(code); return; }
-        room.currentPlayerIndex = nextAliveIndex(room, idxBefore);
-        emitState(io, room);
-        startTimer(io, code);
-        setTimeout(() => botTakeTurnIfNeeded(code), 800);
-        return;
-    }
-
-    // First timeout — auto-dudo (if a bid exists) or open with a low bid.
-    io.to(code).emit('perudo:afkWarning', { userId: p.userId, username: p.username, secondsLeft: null });
-    if (room.lastBid) {
-        applyDudo(code, p.userId);
-    } else {
-        applyBid(code, p.userId, { userId: p.userId, count: 1, face: 2 });
-    }
+    if (aliveCount(room) <= 1 || !hasHumanAlive(room)) { finishGame(code); return; }
+    room.currentPlayerIndex = nextAliveIndex(room, idxBefore);
+    emitState(io, room);
+    startTimer(io, code);
+    setTimeout(() => botTakeTurnIfNeeded(code), 800);
 };
 
 // ── Socket events from clients ────────────────────────────────────────────────

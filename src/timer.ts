@@ -38,8 +38,8 @@ export function startTimer(io: Server, code: string): void {
 
         const p = room.players[room.currentPlayerIndex];
 
-        // AFK warning at 30s if player already has a strike.
-        if (slot.remaining === 30 && (room.afkStrikes[p.userId] ?? 0) >= 1) {
+        // AFK warning at 30s for human players (will be kicked at 0).
+        if (slot.remaining === 30 && p && !p.userId.startsWith('bot-')) {
             io.to(code).emit('perudo:afkWarning', {
                 userId: p.userId,
                 username: p.username,
