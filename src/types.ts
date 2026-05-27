@@ -1,3 +1,5 @@
+import type { GameLogEntry } from './gameLog';
+
 export interface PerudoPlayer {
     userId: string;
     username: string;
@@ -32,6 +34,8 @@ export interface PerudoRoom {
     disconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
     turnStartedAt: number | null;
     turnDuration: number;
+    log: GameLogEntry[];
+    logSeq?: number;
 }
 
 export interface EliminatedPlayer {

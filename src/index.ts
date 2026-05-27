@@ -15,6 +15,9 @@ import { decideBotAction, isBot } from './bot';
 import { savePerudoResults, pushEliminated } from './api';
 import { emitState } from './state';
 import { Bid, RevealResult } from './types';
+import { pushLog } from './gameLog';
+
+const faceLabel = (face: number) => face === 1 ? '1 (Paco)' : String(face);
 
 dotenv.config();
 
@@ -100,6 +103,7 @@ function applyBid(code: string, userId: string, raw: Bid): void {
     }
     room.lastBid = bid;
     room.afkStrikes[userId] = 0;
+    pushLog(room, 'move', `${p.username} mise ${bid.count} × ${faceLabel(bid.face)}`);
 
     // Move to next alive player.
     room.currentPlayerIndex = nextAliveIndex(room, room.currentPlayerIndex);
@@ -136,6 +140,10 @@ function applyDudo(code: string, challengerUserId: string): void {
     room.lastReveal = reveal;
     room.phase = 'reveal';
     room.afkStrikes[challengerUserId] = 0;
+    const loserName = findPlayer(room, loserUserId)?.username ?? '?';
+    pushLog(room, 'attack', `${challenger.username} conteste (Dudo) la mise de ${bid.count} × ${faceLabel(bid.face)}`);
+    pushLog(room, bidValid ? 'defend' : 'coup',
+        `Compte réel : ${actualCount} × ${faceLabel(bid.face)} — mise ${bidValid ? 'tenue' : 'fausse'}, ${loserName} perd un dé`);
     clearTimer(code);
     emitState(io, room);
     io.to(code).emit('perudo:roundResolved', reveal);
@@ -157,6 +165,7 @@ function resolveAfterReveal(code: string, loserUserId: string): void {
                 userId: loser.userId,
                 username: loser.username,
             }, aliveAfter);
+            pushLog(room, 'coup', `${loser.username} est éliminé !`);
             io.to(code).emit('perudo:playerEliminated', { userId: loser.userId, username: loser.username });
         }
     }
@@ -178,6 +187,7 @@ function resolveAfterReveal(code: string, loserUserId: string): void {
     room.lastReveal = null;
     room.phase = 'bidding';
     rerollAll(room);
+    pushLog(room, 'system', `Manche ${room.round} — nouveaux dés`);
 
     emitState(io, room);
     startTimer(io, code);
@@ -191,6 +201,7 @@ function finishGame(code: string): void {
     room.phase = 'ended';
     const winnerPlayer = room.players.find(p => p.alive);
     const winner = winnerPlayer ? { userId: winnerPlayer.userId, username: winnerPlayer.username } : null;
+    if (winner) pushLog(room, 'coup', `${winner.username} remporte la partie !`);
     const gameId = crypto.randomUUID();
     emitState(io, room);
     io.to(code).emit('perudo:finished', {
@@ -279,6 +290,7 @@ io.on('connection', (socket) => {
         const idxBefore = findPlayerIndex(room, userId);
         const aliveAfter = aliveCount(room) - 1;
         pushEliminated(room.eliminated, { userId, username: p.username, abandon: true }, aliveAfter);
+        pushLog(room, 'system', `${p.username} abandonne la partie`);
         p.alive = false;
         p.dice = [];
 

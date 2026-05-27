@@ -42,6 +42,7 @@ export function buildStateFor(room: PerudoRoom, viewerId: string | null) {
         turnDuration: room.turnDuration,
         players,
         spectator: viewerId ? !room.players.some(p => p.userId === viewerId) : true,
+        log: (room.log ?? []).slice(-100),
     };
 }
 

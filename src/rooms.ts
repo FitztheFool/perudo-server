@@ -22,6 +22,8 @@ export function createRoom(code: string, players: ConfiguredPlayer[], initialDic
         disconnectTimers: new Map(),
         turnStartedAt: null,
         turnDuration: TURN_DURATION,
+        log: [],
+        logSeq: 0,
     };
     return rooms[code];
 }
