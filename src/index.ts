@@ -40,7 +40,7 @@ lobbySocket.on('perudo:configure', ({ lobbyId: code, players, options }: {
 }, ack?: () => void) => {
     const initialDice = options?.initialDice ?? DEFAULT_INITIAL_DICE;
     const room = createRoom(code, players, initialDice);
-    console.log(`[Perudo] Room created: ${code} (${players.length} players, ${initialDice} dice)`);
+    console.log(`[PERUDO] Room created: ${code} (${players.length} players, ${initialDice} dice)`);
     emitState(io, room);
     startTimer(io, code);
     setTimeout(() => botTakeTurnIfNeeded(code), 1000);
@@ -94,7 +94,7 @@ function applyBid(code: string, userId: string, raw: Bid): void {
         face: Math.floor(Number(raw.face)),
     };
     if (!isBidValid(room.lastBid, bid, room.pacosWild)) {
-        console.log(`[Perudo] Invalid bid by ${userId}:`, bid, 'against', room.lastBid);
+        console.log(`[PERUDO] Invalid bid by ${userId}:`, bid, 'against', room.lastBid);
         return;
     }
     // If someone bids on 1s while pacosWild, freeze pacos for the rest of the round.
@@ -245,7 +245,7 @@ timerCallbacks.onTimeout = (code: string) => {
 // ── Socket events from clients ────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-    console.log('[Perudo] connexion', socket.id);
+    console.log('[PERUDO] connexion', socket.id);
 
     socket.on('perudo:join', ({ lobbyId: code }: { lobbyId: string }) => {
         const userId = socket.data?.userId as string;
@@ -349,7 +349,7 @@ io.on('connection', (socket) => {
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT ?? 10012;
-server.listen(PORT, () => console.log('[PERUDO] realtime listening on', PORT));
+server.listen(PORT, () => console.log('[PERUDO] listening on port', PORT));
 
 const shutdown = () => {
     io.close(() => {
