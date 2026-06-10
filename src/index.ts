@@ -209,7 +209,7 @@ function finishGame(code: string): void {
         eliminated: room.eliminated,
         gameId,
     });
-    savePerudoResults(room, winner, gameId);
+    savePerudoResults(io, code, room, winner, gameId);
     delete rooms[code];
 }
 

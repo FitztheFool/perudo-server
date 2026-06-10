@@ -1,4 +1,5 @@
-import { saveAttempts, ScoreEntry } from '@kwizar/shared';
+import type { Server } from 'socket.io';
+import { saveAttemptsAndEmit, ScoreEntry } from '@kwizar/shared';
 import { EliminatedPlayer, PerudoRoom } from './types';
 
 export interface PerudoResultEntry {
@@ -10,6 +11,8 @@ export interface PerudoResultEntry {
 }
 
 export function savePerudoResults(
+    io: Server,
+    code: string,
     room: PerudoRoom,
     winner: { userId: string; username: string } | null,
     gameId: string,
@@ -65,7 +68,7 @@ export function savePerudoResults(
         afk: e.afk,
     }));
 
-    saveAttempts('PERUDO', gameId, scores, vsBot);
+    saveAttemptsAndEmit(io, code, 'PERUDO', gameId, scores, vsBot);
 }
 
 export function pushEliminated(
