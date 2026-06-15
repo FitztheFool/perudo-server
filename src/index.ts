@@ -33,13 +33,15 @@ const lobbySocket = connectToLobby('perudo-server', 'perudo');
 
 // ── Configure from lobby ──────────────────────────────────────────────────────
 
-lobbySocket.on('perudo:configure', ({ lobbyId: code, players, options }: {
+lobbySocket.on('perudo:configure', ({ lobbyId: code, players, options, turnSeconds }: {
     lobbyId: string;
     players: any[];
     options?: { initialDice?: number };
+    turnSeconds?: number | null;
 }, ack?: () => void) => {
     const initialDice = options?.initialDice ?? DEFAULT_INITIAL_DICE;
     const room = createRoom(code, players, initialDice);
+    if (turnSeconds != null) room.turnDuration = turnSeconds;
     console.log(`[PERUDO] Room created: ${code} (${players.length} players, ${initialDice} dice)`);
     emitState(io, room);
     startTimer(io, code);

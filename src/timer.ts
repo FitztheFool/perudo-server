@@ -23,9 +23,11 @@ export function clearTimer(code: string): void {
 
 export function startTimer(io: Server, code: string): void {
     clearTimer(code);
-    timers[code] = { remaining: TURN_DURATION };
     const room = rooms[code];
     if (room) room.turnStartedAt = Date.now();
+    const dur = room?.turnDuration ?? TURN_DURATION;
+    if (dur <= 0) return;                              // 0 = pas de limite (jamais AFK)
+    timers[code] = { remaining: dur };
 
     timers[code].interval = setInterval(() => {
         const slot = timers[code];
