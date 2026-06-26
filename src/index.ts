@@ -210,6 +210,8 @@ function finishGame(code: string): void {
         winner,
         eliminated: room.eliminated,
         gameId,
+        // Dés finaux de chaque joueur (partie terminée → on peut tout révéler).
+        finalDice: room.players.map(p => ({ userId: p.userId, username: p.username, dice: [...p.dice] })),
     });
     savePerudoResults(io, code, room, winner, gameId);
     delete rooms[code];
