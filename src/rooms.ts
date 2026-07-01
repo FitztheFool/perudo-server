@@ -4,7 +4,7 @@ import { TURN_DURATION } from './timer';
 
 export const rooms: Record<string, PerudoRoom> = {};
 
-export function createRoom(code: string, players: ConfiguredPlayer[], initialDice?: number): PerudoRoom {
+export function createRoom(code: string, players: ConfiguredPlayer[], initialDice?: number, calza = false): PerudoRoom {
     const dice = clampDice(initialDice ?? DEFAULT_INITIAL_DICE);
     rooms[code] = {
         code,
@@ -15,6 +15,8 @@ export function createRoom(code: string, players: ConfiguredPlayer[], initialDic
         initialDice: dice,
         lastBid: null,
         pacosWild: true,
+        palifico: false,
+        calzaEnabled: !!calza,
         lastReveal: null,
         eliminated: [],
         afkStrikes: {},

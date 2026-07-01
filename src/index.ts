@@ -7,7 +7,7 @@ import { setupSocketAuth, corsConfig, connectToLobby } from '@kwizar/shared';
 
 import {
     rerollAll, isBidValid, countDice, aliveCount, hasHumanAlive, nextAliveIndex,
-    findPlayer, findPlayerIndex, loseDie, totalAliveDice, DEFAULT_INITIAL_DICE,
+    findPlayer, findPlayerIndex, loseDie, gainDie, totalAliveDice, DEFAULT_INITIAL_DICE,
 } from './game';
 import { rooms, createRoom } from './rooms';
 import { startTimer, clearTimer, timerCallbacks } from './timer';
@@ -36,13 +36,14 @@ const lobbySocket = connectToLobby('perudo-server', 'perudo');
 lobbySocket.on('perudo:configure', ({ lobbyId: code, players, options, turnSeconds }: {
     lobbyId: string;
     players: any[];
-    options?: { initialDice?: number };
+    options?: { initialDice?: number; calza?: boolean };
     turnSeconds?: number | null;
 }, ack?: () => void) => {
     const initialDice = options?.initialDice ?? DEFAULT_INITIAL_DICE;
-    const room = createRoom(code, players, initialDice);
+    const calza = !!options?.calza;
+    const room = createRoom(code, players, initialDice, calza);
     if (turnSeconds != null) room.turnDuration = turnSeconds;
-    console.log(`[PERUDO] Room created: ${code} (${players.length} players, ${initialDice} dice)`);
+    console.log(`[PERUDO] Room created: ${code} (${players.length} players, ${initialDice} dice, calza=${calza})`);
     emitState(io, room);
     startTimer(io, code);
     setTimeout(() => botTakeTurnIfNeeded(code), 1000);
@@ -95,13 +96,9 @@ function applyBid(code: string, userId: string, raw: Bid): void {
         count: Math.floor(Number(raw.count)),
         face: Math.floor(Number(raw.face)),
     };
-    if (!isBidValid(room.lastBid, bid, room.pacosWild)) {
-        console.log(`[PERUDO] Invalid bid by ${userId}:`, bid, 'against', room.lastBid);
+    if (!isBidValid(room.lastBid, bid, room.palifico)) {
+        console.log(`[PERUDO] Invalid bid by ${userId}:`, bid, 'against', room.lastBid, room.palifico ? '(palifico)' : '');
         return;
-    }
-    // If someone bids on 1s while pacosWild, freeze pacos for the rest of the round.
-    if (bid.face === 1 && room.pacosWild) {
-        room.pacosWild = false;
     }
     room.lastBid = bid;
     room.afkStrikes[userId] = 0;
@@ -132,6 +129,7 @@ function applyDudo(code: string, challengerUserId: string): void {
         .map(p => ({ userId: p.userId, username: p.username, dice: [...p.dice] }));
 
     const reveal: RevealResult = {
+        kind: 'dudo',
         bid,
         actualCount,
         loserUserId,
@@ -151,22 +149,63 @@ function applyDudo(code: string, challengerUserId: string): void {
     io.to(code).emit('perudo:roundResolved', reveal);
 
     // After a short delay, apply consequences and start next round (or end game).
-    setTimeout(() => resolveAfterReveal(code, loserUserId), 4000);
+    setTimeout(() => concludeRound(code, loserUserId, -1), 4000);
 }
 
-function resolveAfterReveal(code: string, loserUserId: string): void {
+/** Variante Calza : à son tour, un joueur parie que la mise est EXACTE. Exact → +1 dé ; sinon -1 dé. */
+function applyCalza(code: string, callerUserId: string): void {
+    const room = rooms[code];
+    if (!room || room.phase !== 'bidding') return;
+    if (!room.calzaEnabled || !room.lastBid) return;
+    const caller = room.players[room.currentPlayerIndex];
+    if (!caller?.alive || caller.userId !== callerUserId) return; // uniquement à son tour
+
+    const bid = room.lastBid;
+    const actualCount = countDice(room, bid.face, room.pacosWild);
+    const exact = actualCount === bid.count;
+
+    const revealedDice = room.players
+        .filter(p => p.alive)
+        .map(p => ({ userId: p.userId, username: p.username, dice: [...p.dice] }));
+
+    const reveal: RevealResult = {
+        kind: 'calza',
+        bid,
+        actualCount,
+        loserUserId: exact ? '' : callerUserId,
+        challengerUserId: callerUserId,
+        calzaExact: exact,
+        revealedDice,
+        pacosWild: room.pacosWild,
+    };
+    room.lastReveal = reveal;
+    room.phase = 'reveal';
+    room.afkStrikes[callerUserId] = 0;
+    pushLog(room, 'attack', `${caller.username} annonce Calza sur ${bid.count} × ${faceLabel(bid.face)}`);
+    pushLog(room, exact ? 'defend' : 'coup',
+        `Compte réel : ${actualCount} × ${faceLabel(bid.face)} — ${exact ? `exact ! ${caller.username} récupère un dé` : `raté, ${caller.username} perd un dé`}`);
+    clearTimer(code);
+    emitState(io, room);
+    io.to(code).emit('perudo:roundResolved', reveal);
+
+    setTimeout(() => concludeRound(code, callerUserId, exact ? 1 : -1), 4000);
+}
+
+/** Applique la conséquence d'une manche (perte ou gain d'un dé) puis lance la suivante. */
+function concludeRound(code: string, changedUserId: string, change: 1 | -1): void {
     const room = rooms[code];
     if (!room) return;
-    const loserIdxBefore = findPlayerIndex(room, loserUserId);
-    const eliminated = loseDie(room, loserUserId);
+    const idxBefore = findPlayerIndex(room, changedUserId);
+
+    let eliminated = false;
+    if (change === -1) eliminated = loseDie(room, changedUserId);
+    else gainDie(room, changedUserId, room.initialDice);
+
     if (eliminated) {
         const aliveAfter = aliveCount(room);
-        const loser = findPlayer(room, loserUserId);
+        const loser = findPlayer(room, changedUserId);
         if (loser) {
-            pushEliminated(room.eliminated, {
-                userId: loser.userId,
-                username: loser.username,
-            }, aliveAfter);
+            pushEliminated(room.eliminated, { userId: loser.userId, username: loser.username }, aliveAfter);
             pushLog(room, 'coup', `${loser.username} est éliminé !`);
             io.to(code).emit('perudo:playerEliminated', { userId: loser.userId, username: loser.username });
         }
@@ -177,19 +216,25 @@ function resolveAfterReveal(code: string, loserUserId: string): void {
         return;
     }
 
-    // Start next round: pick loser as next starter if still alive, else next alive.
-    if (eliminated) {
-        room.currentPlayerIndex = nextAliveIndex(room, loserIdxBefore);
-    } else {
-        room.currentPlayerIndex = findPlayerIndex(room, loserUserId);
-    }
+    // Palifico : déclenché quand le joueur vient de perdre un dé et tombe à EXACTEMENT 1 dé.
+    const changed = findPlayer(room, changedUserId);
+    const palifico = change === -1 && !!changed?.alive && changed.dice.length === 1;
+
+    // Meneur de la manche suivante : le joueur concerné s'il est en vie, sinon le suivant.
+    room.currentPlayerIndex = eliminated
+        ? nextAliveIndex(room, idxBefore)
+        : findPlayerIndex(room, changedUserId);
+
     room.round++;
     room.lastBid = null;
-    room.pacosWild = true;
+    room.palifico = palifico;
+    room.pacosWild = !palifico; // Paco jokers sauf en manche palifico
     room.lastReveal = null;
     room.phase = 'bidding';
     rerollAll(room);
-    pushLog(room, 'system', `Manche ${room.round} — nouveaux dés`);
+    pushLog(room, 'system', palifico
+        ? `Manche ${room.round} — PALIFICO de ${changed?.username ?? '?'} (Paco non jokers, valeur verrouillée)`
+        : `Manche ${room.round} — nouveaux dés`);
 
     emitState(io, room);
     startTimer(io, code);
@@ -255,17 +300,21 @@ io.on('connection', (socket) => {
         const userId = socket.data?.userId as string;
         const room = rooms[code];
         if (!room) { socket.emit('notFound'); return; }
-        const isMember = !!userId && room.players.some(p => p.userId === userId);
-        if (!isMember) { socket.emit('perudo:accessDenied'); return; }
+        if (!userId) { socket.emit('perudo:accessDenied'); return; }
+        const isMember = room.players.some(p => p.userId === userId);
 
         socket.data.lobbyId = code;
         socket.join(code);
-        room.socketIds.set(userId, socket.id);
-        const timer = room.disconnectTimers.get(userId);
-        if (timer) {
-            clearTimeout(timer);
-            room.disconnectTimers.delete(userId);
-            io.to(code).emit('perudo:playerReconnected', { userId });
+        // Joueur attendu : on (re)mappe son socket et on gère la reconnexion.
+        // Non-joueur : il rejoint en spectateur (vue Dieu) — emitState lui enverra l'état adéquat.
+        if (isMember) {
+            room.socketIds.set(userId, socket.id);
+            const timer = room.disconnectTimers.get(userId);
+            if (timer) {
+                clearTimeout(timer);
+                room.disconnectTimers.delete(userId);
+                io.to(code).emit('perudo:playerReconnected', { userId });
+            }
         }
         socket.emit('perudo:state', { code: room.code, phase: room.phase, currentPlayerIndex: room.currentPlayerIndex }); // quick ping
         emitState(io, room);
@@ -281,6 +330,12 @@ io.on('connection', (socket) => {
         const userId = socket.data?.userId as string;
         if (!userId) return;
         applyDudo(code, userId);
+    });
+
+    socket.on('perudo:calza', ({ lobbyId: code }: { lobbyId: string }) => {
+        const userId = socket.data?.userId as string;
+        if (!userId) return;
+        applyCalza(code, userId);
     });
 
     socket.on('perudo:surrender', ({ lobbyId: code }: { lobbyId: string }) => {

@@ -15,8 +15,10 @@ export function buildStateFor(room: PerudoRoom, viewerId: string | null) {
     const isReveal = room.phase === 'reveal' || room.phase === 'ended';
     const current = room.players[room.currentPlayerIndex];
 
+    // Spectateur : vue Dieu (Perudo n'est pas un jeu de déduction) → voit tous les dés.
+    const isSpectator = viewerId ? !room.players.some(p => p.userId === viewerId) : true;
     const players: PublicPlayer[] = room.players.map(p => {
-        const showDice = isReveal || p.userId === viewerId;
+        const showDice = isReveal || p.userId === viewerId || isSpectator;
         return {
             userId: p.userId,
             username: p.username,
@@ -35,13 +37,15 @@ export function buildStateFor(room: PerudoRoom, viewerId: string | null) {
         initialDice: room.initialDice,
         lastBid: room.lastBid,
         pacosWild: room.pacosWild,
+        palifico: room.palifico,
+        calzaEnabled: room.calzaEnabled,
         totalDice: room.players.reduce((s, p) => s + p.dice.length, 0),
         aliveCount: aliveCount(room),
         lastReveal: isReveal ? room.lastReveal : null,
         turnStartedAt: room.turnStartedAt,
         turnDuration: room.turnDuration,
         players,
-        spectator: viewerId ? !room.players.some(p => p.userId === viewerId) : true,
+        spectator: isSpectator,
         log: (room.log ?? []).slice(-100),
     };
 }

@@ -118,7 +118,7 @@ function computeMinimalRaise(room: PerudoRoom, ownMatching: number): Bid | null 
         }
     }
     // Filter to valid bids that are believable (count <= total).
-    const valid = candidates.filter(b => b.count <= total && isBidValid(prev, b, room.pacosWild));
+    const valid = candidates.filter(b => b.count <= total && isBidValid(prev, b, room.palifico));
     if (valid.length === 0) return null;
     // Sort by "credibility" — prefer faces close to our own dice.
     valid.sort((a, b) => {

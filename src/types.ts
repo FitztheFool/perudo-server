@@ -23,8 +23,12 @@ export interface PerudoRoom {
     phase: Phase;
     initialDice: number;
     lastBid: Bid | null;
-    /** Becomes false once a bid is made on face=1 during the round (Pacos no longer wild). */
+    /** True for normal rounds (1s wild). False only during a palifico round. */
     pacosWild: boolean;
+    /** Palifico round: 1s not wild + face locked. Set when a player drops to exactly 1 die. */
+    palifico: boolean;
+    /** Calza variant enabled for this room (lobby option). */
+    calzaEnabled: boolean;
     /** Reveal payload for the round just resolved (cleared at next round). */
     lastReveal: RevealResult | null;
     /** Players eliminated this game (for final result). */
@@ -47,12 +51,16 @@ export interface EliminatedPlayer {
 }
 
 export interface RevealResult {
+    /** How the round ended. */
+    kind: 'dudo' | 'calza';
     bid: Bid;
     actualCount: number;
-    /** Userid of the player who lost a die (challenger if bid was true, bidder otherwise). */
+    /** Userid of the player who lost a die. Empty string if nobody lost (calza exact). */
     loserUserId: string;
-    /** Userid of the player who called dudo. */
+    /** Userid of the player who triggered the reveal (called dudo or calza). */
     challengerUserId: string;
+    /** Calza only: whether the bid count was exactly right (challenger gains a die). */
+    calzaExact?: boolean;
     /** Dice of every alive player at reveal time. */
     revealedDice: { userId: string; username: string; dice: number[] }[];
     /** Whether 1s counted as wild this round. */
@@ -68,4 +76,5 @@ export interface ConfiguredPlayer {
 
 export interface PerudoOptions {
     initialDice: number; // 3..6
+    calza?: boolean;     // variante Calza (défaut: désactivée)
 }
